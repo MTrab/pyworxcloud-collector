@@ -4,61 +4,54 @@ from uuid import uuid4
 from datetime import datetime, timedelta
 from pathlib import Path
 from app.core.collector import CollectorSink
+from app.core.pyworx_adapter import PyWorxSession
 from app.storage.store import export_zip
+import asyncio
 
 router = APIRouter()
-BASE = Path("/tmp/collector")
+BASE = Path("/data/sessions")
 SESSIONS = {}
 
 @router.post("/login")
-def login(email: str, password: str, consent: bool):
+async def login(email: str, password: str, consent: bool):
     if not consent:
         raise HTTPException(400, "Consent required")
-    # Credentials are intentionally not stored
-    return {"status": "ok", "note": "Credentials kept in memory only"}
+    return {"status": "ok"}
 
 @router.post("/sessions/start")
-def start_session(hours: int = 2):
+async def start_session(email: str, password: str, hours: int = 2):
     sid = str(uuid4())
-    expires = datetime.utcnow() + timedelta(hours=hours)
     session_dir = BASE / sid
     collector = CollectorSink(session_dir)
+    adapter = PyWorxSession(email, password, collector)
 
+    await adapter.start()
+
+    expires = datetime.utcnow() + timedelta(hours=hours)
     SESSIONS[sid] = {
-        "started": datetime.utcnow().isoformat(),
-        "expires": expires.isoformat(),
-        "active": True,
+        "adapter": adapter,
         "collector": collector,
         "dir": session_dir,
+        "expires": expires,
+        "active": True,
     }
-    return {"session_id": sid, "expires": expires}
-
-@router.get("/sessions/{sid}")
-def session_info(sid: str):
-    s = SESSIONS.get(sid)
-    if not s:
-        raise HTTPException(404)
-    return {
-        "started": s["started"],
-        "expires": s["expires"],
-        "active": s["active"],
-        "summary": s["collector"].summary(),
-    }
+    return {"session_id": sid, "expires": expires.isoformat()}
 
 @router.post("/sessions/{sid}/stop")
-def stop_session(sid: str):
+async def stop_session(sid: str):
     s = SESSIONS.get(sid)
     if not s:
         raise HTTPException(404)
+    await s["adapter"].stop()
+    s["collector"].flush()
     s["active"] = False
-    s["collector"].dump()
     return {"status": "stopped"}
 
 @router.get("/sessions/{sid}/download")
-def download(sid: str):
+async def download(sid: str):
     s = SESSIONS.get(sid)
     if not s:
         raise HTTPException(404)
     out = s["dir"] / "export.zip"
     export_zip(s["dir"], out)
-    return {"zip": str(out)}
+    return {"zip_path": str(out)}

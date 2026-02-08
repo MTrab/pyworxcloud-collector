@@ -1,21 +1,20 @@
 
-# pyworxcloud Collector
+# pyworxcloud Collector (Production)
 
-A complete, standalone web-based collector for pyworxcloud.
+Standalone web-based collector with live pyworxcloud integration.
 
 ## Features
-- Web UI with explicit consent
-- Session-based capture lifecycle
-- Automatic expiry
-- Transparent raw JSON storage
+- Live login to Worx/Positec via pyworxcloud
+- Session-based capture
+- Periodic polling of mower status
+- Transparent JSON storage
 - ZIP export per session
-- Docker-ready
-
-## Security
-- Credentials are never persisted
-- All data collection is explicit and visible
-- Sessions are time-limited
+- Docker + docker-compose ready
+- Persistent storage via volume mapping
 
 ## Run
-docker build -t pyworxcloud-collector .
-docker run -p 8080:8080 pyworxcloud-collector
+docker-compose up -d
+Open http://localhost:8080
+
+## Storage
+All collected data is stored under ./data/sessions/

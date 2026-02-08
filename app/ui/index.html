@@ -5,59 +5,50 @@
   <title>pyworxcloud Collector</title>
   <style>
     body { font-family: sans-serif; max-width: 900px; margin: auto; }
-    section { margin-bottom: 20px; }
-    button { padding: 10px; }
-    pre { background: #f4f4f4; padding: 10px; }
+    button { padding: 10px; margin-top: 10px; }
   </style>
 </head>
 <body>
 <h1>pyworxcloud Collector</h1>
 
-<section>
-<h2>Login & Consent</h2>
-<p>Credentials are used only in-memory for the active session.</p>
+<p>Credentials are used only for this active capture session.</p>
+
 <input id="email" placeholder="Email"><br>
 <input id="password" type="password" placeholder="Password"><br>
 <label><input type="checkbox" id="consent"> I consent</label><br>
-<button onclick="login()">Login</button>
-</section>
 
-<section>
-<h2>Capture</h2>
-<button onclick="start()">Start</button>
-<button onclick="stop()">Stop</button>
+<button onclick="start()">Start Capture</button>
+<button onclick="stop()">Stop Capture</button>
 <button onclick="download()">Download ZIP</button>
-<pre id="status">Idle</pre>
-</section>
+
+<pre id="out"></pre>
 
 <script>
 let sid = null;
 
-async function login() {
-  await fetch("/api/login", {
+async function start() {
+  const res = await fetch("/api/sessions/start", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({email, password, consent: consent.checked})
+    body: JSON.stringify({
+      email: email.value,
+      password: password.value,
+      hours: 2
+    })
   });
-  alert("Logged in");
-}
-
-async function start() {
-  const r = await fetch("/api/sessions/start", {method: "POST"});
-  const j = await r.json();
+  const j = await res.json();
   sid = j.session_id;
-  status.innerText = JSON.stringify(j, null, 2);
+  out.innerText = JSON.stringify(j, null, 2);
 }
 
 async function stop() {
   await fetch(`/api/sessions/${sid}/stop`, {method: "POST"});
-  status.innerText = "Stopped";
+  out.innerText = "Stopped";
 }
 
 async function download() {
   const r = await fetch(`/api/sessions/${sid}/download`);
-  const j = await r.json();
-  status.innerText = JSON.stringify(j, null, 2);
+  out.innerText = await r.text();
 }
 </script>
 </body>
