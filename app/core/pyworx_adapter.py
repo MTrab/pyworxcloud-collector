@@ -1,7 +1,6 @@
 
 import asyncio
 from pyworxcloud import WorxCloud
-from pyworxcloud.exceptions import WorxCloudException
 
 class PyWorxSession:
     def __init__(self, email, password, collector):
@@ -28,8 +27,11 @@ class PyWorxSession:
                         "mower_id": mower.id,
                         "status": status,
                     })
-            except WorxCloudException as e:
-                self.collector.record_http({"error": str(e)})
+            except Exception as e:
+                self.collector.record_http({
+                    "error": str(e),
+                    "exception_type": type(e).__name__,
+                })
             await asyncio.sleep(30)
 
     async def stop(self):
