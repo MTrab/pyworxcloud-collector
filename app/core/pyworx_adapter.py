@@ -6,6 +6,18 @@ from pyworxcloud import WorxCloud
 from pyworxcloud.clouds import CloudType
 
 
+def _json_safe(obj):
+    return isinstance(obj, (str, int, float, bool, list, dict, type(None)))
+
+
+def serialize_device(device):
+    return {
+        k: v
+        for k, v in vars(device).items()
+        if _json_safe(v)
+    }
+
+
 class PyWorxSession:
     def __init__(self, username: str, password: str, brand: str, collector, interval: int = 30):
         self.username = username
@@ -47,7 +59,7 @@ class PyWorxSession:
                     self.collector.record_http({
                         "timestamp": datetime.utcnow().isoformat(),
                         "serial_number": device.serial_number,
-                        "device": vars(device),
+                        "device": serialize_device(device),
                     })
             except Exception as exc:
                 self.collector.record_http({
