@@ -1,45 +1,63 @@
 
 import asyncio
+from datetime import datetime
 from pyworxcloud import WorxCloud
+from pyworxcloud.clouds import CloudType
+
 
 class PyWorxSession:
-    def __init__(self, email, password, brand, collector):
-        self.email = email
+    def __init__(self, username: str, password: str, brand: str, collector):
+        self.username = username
         self.password = password
         self.brand = brand
         self.collector = collector
-        self.client = None
-        self._task = None
+        self.cloud: WorxCloud | None = None
         self._running = False
+        self._task: asyncio.Task | None = None
 
-    async def start(self):
-        self.client = WorxCloud(
-            self.email,
+    def _cloud_type(self) -> CloudType:
+        mapping = {
+            "worx": CloudType.WORX,
+            "kress": CloudType.KRESS,
+            "landxcape": CloudType.LANDXCAPE,
+        }
+        return mapping[self.brand]
+
+    async def start(self) -> None:
+        self.cloud = WorxCloud(
+            self.username,
             self.password,
-            self.brand
+            self._cloud_type(),
         )
-        await self.client.login()
-        self._running = True
-        self._task = asyncio.create_task(self._poll_loop())
 
-    async def _poll_loop(self):
+        await self.cloud.authenticate()
+        await self.cloud.connect()
+
+        self._running = True
+        self._task = asyncio.create_task(self._collect_loop())
+
+    async def _collect_loop(self) -> None:
+        assert self.cloud is not None
+
         while self._running:
             try:
-                mowers = await self.client.get_mowers()
-                for mower in mowers:
-                    status = await mower.get_status()
+                for _, device in self.cloud.devices.items():
+                    self.cloud.update(device.serial_number)
                     self.collector.record_http({
-                        "mower_id": mower.id,
-                        "status": status,
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "serial_number": device.serial_number,
+                        "device": vars(device),
                     })
-            except Exception as e:
+            except Exception as exc:
                 self.collector.record_http({
-                    "error": str(e),
-                    "exception_type": type(e).__name__,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "error": str(exc),
+                    "exception_type": type(exc).__name__,
                 })
+
             await asyncio.sleep(30)
 
-    async def stop(self):
+    async def stop(self) -> None:
         self._running = False
         if self._task:
             await self._task
