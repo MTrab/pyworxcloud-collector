@@ -2,20 +2,38 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>pyworxcloud Collector</title>
+  <title>Landroid Cloud – Data Collector</title>
   <style>
     body { font-family: sans-serif; max-width: 900px; margin: auto; }
     button { padding: 10px; margin-top: 10px; }
   </style>
 </head>
 <body>
-<h1>pyworxcloud Collector</h1>
+<h1>Landroid Cloud – Data Collector</h1>
 
-<p>Credentials are used only for this active capture session.</p>
+<p>
+<strong>Your credentials are NEVER stored.</strong><br>
+They are used only in memory for this active capture session and are discarded
+immediately when the session stops or expires.
+</p>
 
-<input id="email" placeholder="Email"><br>
-<input id="password" type="password" placeholder="Password"><br>
-<label><input type="checkbox" id="consent"> I consent</label><br>
+<label>Email</label><br>
+<input id="email"><br><br>
+
+<label>Password</label><br>
+<input id="password" type="password"><br><br>
+
+<label>Brand</label><br>
+<select id="brand">
+  <option value="worx">Worx Landroid</option>
+  <option value="kress">Kress</option>
+  <option value="landxcape">LandXcape</option>
+</select><br><br>
+
+<label>
+  <input type="checkbox" id="consent">
+  I understand that my credentials are not stored and are used only for this temporary capture session
+</label><br><br>
 
 <button onclick="start()">Start Capture</button>
 <button onclick="stop()">Stop Capture</button>
@@ -27,12 +45,18 @@
 let sid = null;
 
 async function start() {
+  if (!consent.checked) {
+    alert("Consent is required");
+    return;
+  }
+
   const res = await fetch("/api/sessions/start", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({
       email: email.value,
       password: password.value,
+      brand: brand.value,
       hours: 2
     })
   });

@@ -3,31 +3,35 @@ from fastapi import APIRouter, HTTPException
 from uuid import uuid4
 from datetime import datetime, timedelta
 from pathlib import Path
+from pydantic import BaseModel
 from app.core.collector import CollectorSink
 from app.core.pyworx_adapter import PyWorxSession
 from app.storage.store import export_zip
-import asyncio
 
 router = APIRouter()
 BASE = Path("/data/sessions")
 SESSIONS = {}
 
-@router.post("/login")
-async def login(email: str, password: str, consent: bool):
-    if not consent:
-        raise HTTPException(400, "Consent required")
-    return {"status": "ok"}
+class StartSessionRequest(BaseModel):
+    email: str
+    password: str
+    brand: str
+    hours: int = 2
 
 @router.post("/sessions/start")
-async def start_session(email: str, password: str, hours: int = 2):
+async def start_session(req: StartSessionRequest):
     sid = str(uuid4())
     session_dir = BASE / sid
     collector = CollectorSink(session_dir)
-    adapter = PyWorxSession(email, password, collector)
-
+    adapter = PyWorxSession(
+        email=req.email,
+        password=req.password,
+        brand=req.brand,
+        collector=collector
+    )
     await adapter.start()
 
-    expires = datetime.utcnow() + timedelta(hours=hours)
+    expires = datetime.utcnow() + timedelta(hours=req.hours)
     SESSIONS[sid] = {
         "adapter": adapter,
         "collector": collector,

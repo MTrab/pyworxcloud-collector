@@ -3,16 +3,21 @@ import asyncio
 from pyworxcloud import WorxCloud
 
 class PyWorxSession:
-    def __init__(self, email, password, collector):
+    def __init__(self, email, password, brand, collector):
         self.email = email
         self.password = password
+        self.brand = brand
         self.collector = collector
         self.client = None
         self._task = None
         self._running = False
 
     async def start(self):
-        self.client = WorxCloud(self.email, self.password)
+        self.client = WorxCloud(
+            self.email,
+            self.password,
+            self.brand
+        )
         await self.client.login()
         self._running = True
         self._task = asyncio.create_task(self._poll_loop())
