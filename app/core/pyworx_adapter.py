@@ -4,22 +4,11 @@ import time
 from datetime import datetime
 from pyworxcloud import WorxCloud
 from pyworxcloud.clouds import CloudType
-
-
-def _json_safe(obj):
-    return isinstance(obj, (str, int, float, bool, list, dict, type(None)))
-
-
-def serialize_device(device):
-    return {
-        k: v
-        for k, v in vars(device).items()
-        if _json_safe(v)
-    }
+from pyworxcloud.events import LandroidEvent
 
 
 class PyWorxSession:
-    def __init__(self, username: str, password: str, brand: str, collector, interval: int = 30):
+    def __init__(self, username: str, password: str, brand: str, collector, interval: int = 60):
         self.username = username
         self.password = password
         self.brand = brand
@@ -44,6 +33,9 @@ class PyWorxSession:
             tz="Europe/Copenhagen",
         )
 
+        self.cloud.set_callback(LandroidEvent.DATA_RECEIVED, self._on_mqtt)
+        self.cloud.set_callback(LandroidEvent.API, self._on_http)
+
         self.cloud.authenticate()
         self.cloud.connect()
 
@@ -51,23 +43,24 @@ class PyWorxSession:
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
 
+    def _on_mqtt(self, serial_number: str, payload: dict):
+        self.collector.record_mqtt({
+            "timestamp": datetime.utcnow().isoformat(),
+            "serial_number": serial_number,
+            "payload": payload,
+        })
+
+    def _on_http(self, serial_number: str, payload: dict):
+        self.collector.record_http({
+            "timestamp": datetime.utcnow().isoformat(),
+            "serial_number": serial_number,
+            "payload": payload,
+        })
+
     def _loop(self):
         while self._running:
-            try:
-                for _, device in self.cloud.devices.items():
-                    self.cloud.update(device.serial_number)
-                    self.collector.record_http({
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "serial_number": device.serial_number,
-                        "device": serialize_device(device),
-                    })
-            except Exception as exc:
-                self.collector.record_http({
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "error": str(exc),
-                    "exception_type": type(exc).__name__,
-                })
-
+            for serial in list(self.cloud.devices.keys()):
+                self.cloud.update(serial)
             time.sleep(self.interval)
 
     def stop(self):
