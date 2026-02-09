@@ -19,17 +19,18 @@ class StartSessionRequest(BaseModel):
     hours: int = 2
 
 @router.post("/sessions/start")
-async def start_session(req: StartSessionRequest):
+def start_session(req: StartSessionRequest):
     sid = str(uuid4())
     session_dir = BASE / sid
     collector = CollectorSink(session_dir)
+
     adapter = PyWorxSession(
-        email=req.email,
+        username=req.email,
         password=req.password,
         brand=req.brand,
-        collector=collector
+        collector=collector,
     )
-    await adapter.start()
+    adapter.start()
 
     expires = datetime.utcnow() + timedelta(hours=req.hours)
     SESSIONS[sid] = {
@@ -42,17 +43,17 @@ async def start_session(req: StartSessionRequest):
     return {"session_id": sid, "expires": expires.isoformat()}
 
 @router.post("/sessions/{sid}/stop")
-async def stop_session(sid: str):
+def stop_session(sid: str):
     s = SESSIONS.get(sid)
     if not s:
         raise HTTPException(404)
-    await s["adapter"].stop()
+    s["adapter"].stop()
     s["collector"].flush()
     s["active"] = False
     return {"status": "stopped"}
 
 @router.get("/sessions/{sid}/download")
-async def download(sid: str):
+def download(sid: str):
     s = SESSIONS.get(sid)
     if not s:
         raise HTTPException(404)

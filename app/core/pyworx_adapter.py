@@ -1,44 +1,45 @@
 
-import asyncio
+import threading
+import time
 from datetime import datetime
 from pyworxcloud import WorxCloud
 from pyworxcloud.clouds import CloudType
 
 
 class PyWorxSession:
-    def __init__(self, username: str, password: str, brand: str, collector):
+    def __init__(self, username: str, password: str, brand: str, collector, interval: int = 30):
         self.username = username
         self.password = password
         self.brand = brand
         self.collector = collector
-        self.cloud: WorxCloud | None = None
+        self.interval = interval
+        self.cloud = None
+        self._thread = None
         self._running = False
-        self._task: asyncio.Task | None = None
 
     def _cloud_type(self) -> CloudType:
-        mapping = {
+        return {
             "worx": CloudType.WORX,
             "kress": CloudType.KRESS,
             "landxcape": CloudType.LANDXCAPE,
-        }
-        return mapping[self.brand]
+        }[self.brand]
 
-    async def start(self) -> None:
+    def start(self):
         self.cloud = WorxCloud(
             self.username,
             self.password,
             self._cloud_type(),
+            tz="Europe/Copenhagen",
         )
 
-        await self.cloud.authenticate()
-        await self.cloud.connect()
+        self.cloud.authenticate()
+        self.cloud.connect()
 
         self._running = True
-        self._task = asyncio.create_task(self._collect_loop())
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
 
-    async def _collect_loop(self) -> None:
-        assert self.cloud is not None
-
+    def _loop(self):
         while self._running:
             try:
                 for _, device in self.cloud.devices.items():
@@ -55,9 +56,11 @@ class PyWorxSession:
                     "exception_type": type(exc).__name__,
                 })
 
-            await asyncio.sleep(30)
+            time.sleep(self.interval)
 
-    async def stop(self) -> None:
+    def stop(self):
         self._running = False
-        if self._task:
-            await self._task
+        if self._thread:
+            self._thread.join(timeout=5)
+        if self.cloud:
+            self.cloud.disconnect()
