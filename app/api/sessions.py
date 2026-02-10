@@ -1,62 +1,51 @@
 
-from fastapi import APIRouter, HTTPException
-from uuid import uuid4
-from datetime import datetime, timedelta
-from pathlib import Path
+import os
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from app.core.collector import CollectorSink
-from app.core.pyworx_adapter import PyWorxSession
-from app.storage.store import export_zip
 
-router = APIRouter()
-BASE = Path("/data/sessions")
-SESSIONS = {}
+from app.core.collector import Collector
+from app.core.pyworx_adapter import PyWorxAdapterError
 
-class StartSessionRequest(BaseModel):
-    email: str
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/sessions")
+collector = Collector()
+
+class StartRequest(BaseModel):
+    username: str
     password: str
     brand: str
-    hours: int = 2
+    consent: bool
 
-@router.post("/sessions/start")
-def start_session(req: StartSessionRequest):
-    sid = str(uuid4())
-    session_dir = BASE / sid
-    collector = CollectorSink(session_dir)
+@router.post("/start")
+def start(payload: StartRequest):
+    if not payload.consent:
+        raise HTTPException(status_code=400, detail="Consent is required to start.")
+    if not payload.username or not payload.password:
+        raise HTTPException(status_code=400, detail="Username and password are required.")
+    brand = (payload.brand or "").lower()
+    if brand not in {"worx", "kress", "landxcape"}:
+        raise HTTPException(status_code=400, detail="Invalid brand.")
+    try:
+        return collector.start(payload.username, payload.password, brand)
+    except PyWorxAdapterError as exc:
+        logger.error("PyWorxAdapterError on start: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc))
 
-    adapter = PyWorxSession(
-        username=req.email,
-        password=req.password,
-        brand=req.brand,
-        collector=collector,
-    )
-    adapter.start()
+@router.post("/{sid}/stop")
+def stop(sid: str):
+    res = collector.stop(sid)
+    if not res:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    return res
 
-    expires = datetime.utcnow() + timedelta(hours=req.hours)
-    SESSIONS[sid] = {
-        "adapter": adapter,
-        "collector": collector,
-        "dir": session_dir,
-        "expires": expires,
-        "active": True,
-    }
-    return {"session_id": sid, "expires": expires.isoformat()}
-
-@router.post("/sessions/{sid}/stop")
-def stop_session(sid: str):
-    s = SESSIONS.get(sid)
-    if not s:
-        raise HTTPException(404)
-    s["adapter"].stop()
-    s["collector"].flush()
-    s["active"] = False
-    return {"status": "stopped"}
-
-@router.get("/sessions/{sid}/download")
-def download(sid: str):
-    s = SESSIONS.get(sid)
-    if not s:
-        raise HTTPException(404)
-    out = s["dir"] / "export.zip"
-    export_zip(s["dir"], out)
-    return {"zip_path": str(out)}
+@router.get("/{sid}/download")
+def download(sid: str, background_tasks: BackgroundTasks):
+    zip_path = collector.build_zip(sid)
+    if not zip_path:
+        raise HTTPException(status_code=404, detail="No data available for download.")
+    background_tasks.add_task(os.remove, zip_path)
+    return FileResponse(zip_path, media_type="application/zip", filename=f"{sid}.zip")

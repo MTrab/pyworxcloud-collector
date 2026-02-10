@@ -1,0 +1,62 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Landroid Cloud Collector</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+    label { display: block; margin: 12px 0 6px; }
+    input, select, button { padding: 8px; font-size: 14px; }
+    input, select { width: 100%; box-sizing: border-box; }
+    .row { margin-top: 16px; }
+    .buttons { display: flex; gap: 8px; margin-top: 16px; }
+    .note { font-size: 12px; color: #444; margin-top: 6px; }
+    .consent-row { display: flex; align-items: center; gap: 8px; }
+    .consent-row input { width: auto; margin: 0; }
+    .consent-row label { margin: 0; }
+    #status { margin-top: 12px; font-size: 13px; color: #333; }
+  </style>
+</head>
+<body>
+  <h2>Landroid Cloud Collector</h2>
+
+  <label for="username">Email</label>
+  <input id="username" type="email" autocomplete="username" />
+
+  <label for="password">Password</label>
+  <input id="password" type="password" autocomplete="current-password" />
+
+  <label for="brand">Brand</label>
+  <select id="brand">
+    <option value="worx">WORX</option>
+    <option value="kress">KRESS</option>
+    <option value="landxcape">LANDXCAPE</option>
+  </select>
+
+  <div class="row consent-row">
+    <input type="checkbox" id="consent">
+    <label for="consent">
+      I consent to data being dumped during this session.
+    </label>
+  </div>
+  <div class="note">
+    IMPORTANT: Credentials are only used for this active capture session and are NEVER stored on the server.
+    You can download a ZIP file with the complete capture result after stopping.
+  </div>
+  <div class="note">
+    It is not necessary to submit that ZIP file anywhere—the data stays on the server; the ZIP is just so you can inspect exactly what we captured.
+  </div>
+
+  <div class="buttons">
+    <button id="startBtn" onclick="start()">Start</button>
+    <button id="stopBtn" onclick="stop()">Stop</button>
+    <button id="downloadBtn" onclick="download()">Download zip</button>
+  </div>
+
+  <div id="status"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
