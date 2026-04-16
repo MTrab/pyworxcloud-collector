@@ -11,19 +11,26 @@ class Collector:
     def __init__(self):
         self.sessions = {}
 
-    def start(self, username, password, brand):
+    async def start(self, username, password, brand):
         sid = str(uuid.uuid4())
         adapter = PyWorxAdapter(sid, username, password, brand)
         try:
-            adapter.start()
+            await adapter.start()
         except PyWorxAdapterError:
             raise
         self.sessions[sid] = adapter
-        return {"session": sid}
+        # include devices metadata (name/model/serial) for API consumers
+        devices = getattr(adapter, "devices_info", [])
+        return {"session": sid, "devices": devices}
 
-    def stop(self, sid):
+    async def stop(self, sid):
         if sid in self.sessions:
-            self.sessions[sid].stop()
+            adapter = self.sessions[sid]
+            try:
+                await adapter.stop()
+            except Exception:
+                pass
+            del self.sessions[sid]
             return {"stopped": sid}
         return None
 

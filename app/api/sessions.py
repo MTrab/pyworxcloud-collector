@@ -21,7 +21,7 @@ class StartRequest(BaseModel):
     consent: bool
 
 @router.post("/start")
-def start(payload: StartRequest):
+async def start(payload: StartRequest):
     if not payload.consent:
         raise HTTPException(status_code=400, detail="Consent is required to start.")
     if not payload.username or not payload.password:
@@ -30,14 +30,14 @@ def start(payload: StartRequest):
     if brand not in {"worx", "kress", "landxcape"}:
         raise HTTPException(status_code=400, detail="Invalid brand.")
     try:
-        return collector.start(payload.username, payload.password, brand)
+        return await collector.start(payload.username, payload.password, brand)
     except PyWorxAdapterError as exc:
         logger.error("PyWorxAdapterError on start: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc))
 
 @router.post("/{sid}/stop")
-def stop(sid: str):
-    res = collector.stop(sid)
+async def stop(sid: str):
+    res = await collector.stop(sid)
     if not res:
         raise HTTPException(status_code=404, detail="Session not found.")
     return res
