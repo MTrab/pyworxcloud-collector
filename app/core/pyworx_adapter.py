@@ -1,4 +1,4 @@
-import threading, json, os, time
+import threading, json, os, time, asyncio, inspect
 from pyworxcloud import WorxCloud
 from pyworxcloud.events import LandroidEvent
 from pyworxcloud.exceptions import AuthorizationError
@@ -41,14 +41,22 @@ class PyWorxAdapter:
         cloud._on_update = on_update
 
         try:
-            auth = cloud.authenticate()
+            auth_res = cloud.authenticate()
+            if inspect.isawaitable(auth_res):
+                auth = asyncio.run(auth_res)
+            else:
+                auth = auth_res
         except AuthorizationError as exc:
             raise PyWorxAdapterError(f"Authentication failed: {exc}") from exc
         if not auth:
             raise PyWorxAdapterError("Authentication failed: invalid credentials")
 
         try:
-            connected = cloud.connect()
+            conn_res = cloud.connect()
+            if inspect.isawaitable(conn_res):
+                connected = asyncio.run(conn_res)
+            else:
+                connected = conn_res
         except Exception as exc:
             raise PyWorxAdapterError(f"Connection failed: {exc}") from exc
         if not connected:
@@ -121,7 +129,12 @@ class PyWorxAdapter:
             self._original_on_update = None
 
         try:
-            self._cloud.disconnect()
+            disc = self._cloud.disconnect()
+            if inspect.isawaitable(disc):
+                try:
+                    asyncio.run(disc)
+                except Exception:
+                    pass
         except Exception:
             pass
         self._cloud = None
