@@ -5,5 +5,5 @@ services:
     ports:
       - "8088:8080"
     volumes:
-      - ./data:/app/data
+      - /home/vscode/pyworxcloud/code-ref/samples:/app/data
     restart: unless-stopped
